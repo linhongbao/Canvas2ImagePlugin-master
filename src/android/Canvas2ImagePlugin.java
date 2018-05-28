@@ -1,8 +1,10 @@
 package org.devgeeks.Canvas2ImagePlugin;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
@@ -187,6 +189,26 @@ public class Canvas2ImagePlugin extends CordovaPlugin {
 			payThread.start();
 		}
 		return true;
+
+	}
+
+	/***
+	 * Android 7.0开始需要在应用管理里面设置权限,这个会在页面提示处要获取权限的
+	 * @param activity
+	 * @return
+	 */
+	 public  boolean isGrantExternalRW() {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && cordova.getActivity().checkSelfPermission(
+				Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+			cordova.getActivity().requestPermissions(new String[]{
+					Manifest.permission.READ_EXTERNAL_STORAGE,
+					Manifest.permission.WRITE_EXTERNAL_STORAGE
+			}, 1);
+
+			return false;
+		}
+
+		return true;
 	}
 
 	private File savePhoto(Bitmap bmp) {
@@ -194,14 +216,17 @@ public class Canvas2ImagePlugin extends CordovaPlugin {
 		
 		try {
 			Calendar c = Calendar.getInstance();
-			String date = "" + c.get(Calendar.DAY_OF_MONTH)
-					+ c.get(Calendar.MONTH)
+			String date = "" +
 					+ c.get(Calendar.YEAR)
+					+ c.get(Calendar.MONTH)
+					+ c.get(Calendar.DAY_OF_MONTH)
 					+ c.get(Calendar.HOUR_OF_DAY)
 					+ c.get(Calendar.MINUTE)
-					+ c.get(Calendar.SECOND);
+					+ c.get(Calendar.SECOND)
+					+ c.get(Calendar.MILLISECOND);
 
 			String deviceVersion = Build.VERSION.RELEASE;
+			Log.i("Canvas2ImagePlugin", "文件名" + date.toString());
 			Log.i("Canvas2ImagePlugin", "Android version " + deviceVersion);
 			int check = deviceVersion.compareTo("2.3.3");
 
@@ -212,8 +237,7 @@ public class Canvas2ImagePlugin extends CordovaPlugin {
 			 * 2.2
 			 */
 			if (check >= 1) {
-				folder = Environment
-					.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+				folder = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
 				
 				if(!folder.exists()) {
 					folder.mkdirs();
@@ -221,18 +245,26 @@ public class Canvas2ImagePlugin extends CordovaPlugin {
 			} else {
 				folder = Environment.getExternalStorageDirectory();
 			}
-			
-			File imageFile = new File(folder, "c2i_" + date.toString() + ".png");
 
-			FileOutputStream out = new FileOutputStream(imageFile);
-			bmp.compress(Bitmap.CompressFormat.PNG, 100, out);
-			out.flush();
-			out.close();
+			/***
+			 * Andorid 7.0 以上,要权限
+			 */
+			isGrantExternalRW();
 
-			retVal = imageFile;
+			File imageFile = new File(folder, "iyb_" + date.toString() + ".png");
+
+			boolean result = imageFile.createNewFile();
+
+			if(result) {
+				FileOutputStream out = new FileOutputStream(imageFile);
+				bmp.compress(Bitmap.CompressFormat.PNG, 100, out);
+				out.flush();
+				out.close();
+				retVal = imageFile;
+			}
 		} catch (Exception e) {
-			Log.e("Canvas2ImagePlugin", "An exception occured while saving image: "
-					+ e.toString());
+			Log.e("Canvas2ImagePlugin", "An exception occured while saving image: " + e.toString());
+			e.printStackTrace();
 		}
 		return retVal;
 	}
